@@ -12,11 +12,12 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 def get_password_hash(password: str) -> str:
-    pwd_str = str(password)
-    if len(pwd_str) > 72:
-        pwd_str = pwd_str[:72]
-    return pwd_context.hash(pwd_str)
+    pwd_bytes = password.encode("utf-8")
 
+    if len(pwd_bytes) > 72:
+        pwd_bytes = pwd_bytes[:72]
+
+    return pwd_context.hash(pwd_bytes)
 def create_access_token(subject: Union[str, Any], expires_delta: timedelta | None = None) -> str:
     expire = datetime.utcnow() + (
         expires_delta if expires_delta else timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
