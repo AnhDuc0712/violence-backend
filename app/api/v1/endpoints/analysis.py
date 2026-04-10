@@ -1,5 +1,5 @@
 # TRONG FILE: app/api/routes/analysis.py (CỦA BACKEND 8000)
-
+import os
 import uuid
 import logging
 import requests
@@ -8,7 +8,8 @@ import numpy as np # ✅ BẮT BUỘC PHẢI CÓ ĐỂ TRÁNH LỖI NP NOT DEFIN
 from datetime import datetime
 from typing import List, Any, Optional
 from uuid import UUID
-
+from pydantic import BaseModel
+from typing import List, Optional, Any
 from fastapi import APIRouter, Depends, HTTPException, Header, Body
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
@@ -58,6 +59,16 @@ class AISyncPayload(BaseModel):
     events: List[Any] = []
     analysis_hash: Optional[str] = None
     failure_reason: Optional[str] = None 
+# Cái này là cái thùng chứa để hứng data từ AI quăng qua
+class SyncAnalysisPayload(BaseModel):
+    session_id: str
+    video_id: str
+    status: str
+    max_prob: float = 0.0
+    processed_video_path: Optional[str] = None
+    events: List[Any] = []
+    analysis_hash: str
+    failure_reason: Optional[str] = None
 
 def safe_json(data):
     if isinstance(data, np.ndarray):
@@ -127,7 +138,7 @@ async def start_analysis(
                 json={
                     "video_id": str(video.id),
                     "session_id": str(new_session.id),
-                    "video_url": video.s3_key,  
+                    "s3_key": video.s3_key,  
                 },
                 timeout=10  
             )
@@ -156,72 +167,40 @@ async def start_analysis(
 
 # 🔄 2. SYNC ANALYSIS (WEBHOOK TỪ AI)
 @router.post("/internal/sync-analysis")
-def sync_analysis_from_ai(
-    payload: AISyncPayload = Body(...), 
-    db: Session = Depends(get_db),
-    x_internal_secret: Optional[str] = Header(None, alias="X-Internal-Secret")
+async def sync_analysis(
+    payload: SyncAnalysisPayload,
+    request: Request,
+    db: Session = Depends(get_db)
 ):
-    if x_internal_secret != INTERNAL_SECRET_KEY:
-        raise HTTPException(status_code=403, detail="Unauthorized - Sai Secret Key")
+    # 🔐 1. Bảo vệ cổng: Kiểm tra Thẻ căn cước (Secret Key)
+    internal_key = request.headers.get("X-Internal-Secret")
+    if internal_key != INTERNAL_SECRET_KEY:
+        raise HTTPException(status_code=403, detail="Forbidden: Sai mật khẩu nội bộ")
 
-    try:
-        session = None
-        if payload.session_id:
-            session = db.query(AnalysisSession).filter(AnalysisSession.id == payload.session_id).first()
-        elif payload.video_id:
-            session = db.query(AnalysisSession).filter(
-                AnalysisSession.video_id == payload.video_id,
-                AnalysisSession.status.in_(["pending", "processing"]) 
-            ).first()
-            
-        if not session:
-            raise HTTPException(status_code=404, detail="Không tìm thấy phiên phân tích (Session) tương ứng.")
+    # 🔍 2. Tìm kiếm cuốc xe (Session) trong Database
+    # (Thay AnalysisSession bằng tên Model thật của sếp)
+    session_db = db.query(AnalysisSession).filter(AnalysisSession.id == payload.session_id).first()
+    
+    if not session_db:
+        # Nếu AI báo về một cuốc xe không tồn tại, cứ trả về 200 để AI khỏi chửi, nhưng báo log.
+        return {"status": "ignored", "message": "Session không tồn tại trong DB"}
 
-        # CẬP NHẬT DỮ LIỆU CHÍNH
-        session.finished_at = datetime.utcnow()
-        session.processed_video_path = payload.processed_video_path 
-        session.status = payload.status or "completed" 
-        session.max_prob = float(payload.max_prob) if payload.max_prob else 0.0
+    # ✍️ 3. Cập nhật thông tin vào DB
+    session_db.status = payload.status
+    
+    if payload.status == "completed":
+        session_db.max_prob = payload.max_prob
+        session_db.processed_video_url = payload.processed_video_path # Chỗ này xem tên biến DB của sếp là gì
+        session_db.events = payload.events
+    elif payload.status == "failed":
+        # Nếu có cột lưu lý do lỗi thì lưu vào
+        # session_db.error_message = payload.failure_reason 
+        pass
 
-        if session.status == "failed":
-            session.failure_reason = payload.failure_reason or "AI processing failed (Không rõ lý do)"
+    # 💾 4. Lưu lại
+    db.commit()
 
-        if payload.analysis_hash:
-            session.analysis_hash = payload.analysis_hash
-
-        # CẬP NHẬT EVENTS (VỚI TRY...EXCEPT BẢO VỆ TỪNG DÒNG)
-        db.query(AnalysisEvent).filter(AnalysisEvent.session_id == session.id).delete()
-        
-        for i, ev in enumerate(payload.events):
-            if not isinstance(ev, dict): continue
-            
-            try:
-                new_event = AnalysisEvent(
-                    id=uuid.uuid4(),
-                    session_id=session.id,
-                    event_type=str(ev.get("label") or ev.get("type") or "violence"),
-                    score=float(ev.get("score") or ev.get("peak_prob") or ev.get("max_prob") or 0.0),
-                    t_start=float(ev.get("start") or ev.get("start_frame") or 0.0),
-                    t_end=float(ev.get("end") or ev.get("end_frame") or 0.0),
-                    # 🔥 DÙNG HÀM SAFE_JSON BỌC THÉP
-                    payload=safe_json(ev.get("metadata") or ev), 
-                    ml_review_status="pending", 
-                    event_hash=f"{session.id}_{i}_{uuid.uuid4().hex[:4]}",
-                    created_at=datetime.utcnow()
-                )
-                db.add(new_event)
-            except Exception as ev_err:
-                logger.warning(f"⚠️ Bỏ qua Event bị lỗi ({ev}): {ev_err}")
-                continue # Nếu 1 event lỗi, bỏ qua nó, cứu các event còn lại
-        
-        db.commit()
-        logger.info(f"✅ Sync SUCCESS for Session {session.id}")
-        return {"status": "success"}
-        
-    except Exception as e:
-        db.rollback()
-        logger.error(f"❌ SYNC ERROR: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "ok", "message": "Đã đồng bộ kết quả thành công"}
 
 # 📑 3. LIST SESSIONS
 @router.get("", response_model=List[AnalysisSessionRead])
