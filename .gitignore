@@ -1,26 +1,83 @@
-# Python
+# =========================
+# 🔐 ENV (QUAN TRỌNG NHẤT)
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# 🐍 PYTHON
+# =========================
 __pycache__/
 *.py[cod]
 *.pyo
+*.pyd
 
-# Env
-.env
+# Virtual env
 .venv/
 venv/
+env/
 
-# Build / cache
+# =========================
+# 🧪 TEST / CACHE
+# =========================
 .pytest_cache/
 .mypy_cache/
 .coverage
+htmlcov/
 
-# OS / Editor
+# =========================
+# 🧱 BUILD
+# =========================
+build/
+dist/
+*.egg-info/
+
+# =========================
+# 🖥️ IDE / OS
+# =========================
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
 
-# Archives
+# =========================
+# 📦 ARCHIVE
+# =========================
 *.zip
+*.tar
+*.gz
 
-# Logs
+# =========================
+# 📄 LOG
+# =========================
 *.log
+
+# =========================
+# 🎥 UPLOAD / OUTPUT (QUAN TRỌNG)
+# =========================
+uploads/
+outputs/
+temp/
+tmp/
+
+# =========================
+# 🤖 MODEL FILES (RẤT QUAN TRỌNG)
+# =========================
+*.pt
+*.pth
+*.onnx
+*.engine
+*.pkl
+
+# =========================
+# 🔥 DATASET (TO NẶNG)
+# =========================
+datasets/
+data/
+
+# =========================
+# 🐳 DOCKER
+# =========================
+*.env.docker
+docker-compose.override.yml

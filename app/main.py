@@ -19,7 +19,13 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     docs_url="/swagger",
 )
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # dev thì để *
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # 🛠️ [DEBUG 422] MIDDLEWARE BẮT LỖI VALIDATION
 # Thêm đoạn này để ép FastAPI phải "khai" ra lỗi nằm ở đâu
 @app.exception_handler(RequestValidationError)
@@ -34,7 +40,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     print(f"🔍 CHI TIẾT LỖI (Pydantic): {exc.errors()}")
     print(f"📥 DỮ LIỆU NHẬN ĐƯỢC: {body_str}")
     print("="*50 + "\n")
-    
+    print("S3:", settings.S3_ACCESS_KEY_ID)
     # Ghi vào log file nếu có cấu hình
     logger.error(f"422 Validation Error: {exc.errors()} | Body: {body_str}")
     
@@ -46,23 +52,6 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             "message": "Dữ liệu gửi lên không đúng định dạng Schema của Backend."
         },
     )
-
-# CẤU HÌNH CORS
-app.add_middleware(
-    CORSMiddleware,
-    # 🔥 TẠM THỜI MỞ "*" ĐỂ VERCEL GỌI ĐƯỢC NGAY
-    allow_origins=["*"], 
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Cấu hình Media/Upload
-settings.UPLOAD_DIR_PATH.mkdir(parents=True, exist_ok=True)
-app.mount(settings.MEDIA_URL_PREFIX, StaticFiles(directory=settings.UPLOAD_DIR_PATH), name="media")
-
-os.makedirs("uploads", exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="direct_uploads")
 # Đăng ký Router
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
@@ -71,5 +60,4 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 async def root():
     return {
         "message": f"Welcome to {settings.PROJECT_NAME}. Visit /swagger for docs.",
-        "media_url_prefix": settings.MEDIA_URL_PREFIX,
     }

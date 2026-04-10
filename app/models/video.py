@@ -15,5 +15,6 @@ class Video(Base):
     size_bytes = Column(BigInteger)
     duration_sec = Column(Integer)
     raw_path = Column(Text, nullable=False)
+    s3_key = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     deleted_at = Column(DateTime(timezone=True))

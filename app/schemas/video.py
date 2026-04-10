@@ -13,12 +13,14 @@ class VideoCreate(VideoBase):
     content_hash: str
     owner_user_id: UUID
     raw_path: str
+    s3_key: Optional[str] = None
 
 class VideoRead(VideoBase):
     id: UUID
     content_hash: str
     owner_user_id: UUID
     raw_path: str
+    s3_key: Optional[str] = None
     created_at: datetime
     
     model_config = ConfigDict(from_attributes=True)

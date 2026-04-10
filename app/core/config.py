@@ -1,38 +1,49 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import computed_field
+from pydantic import computed_field, Field
 from pathlib import Path
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Violence Detection System"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
+    # =========================
+    # DATABASE & AI SERVER
+    # =========================
+    DATABASE_URL: str = Field(..., min_length=1)
+    AI_SERVER_URL: str = Field(..., min_length=1)
 
-    # Chỉ dùng 1 biến duy nhất cho kết nối Database
-    DATABASE_URL: str
-    
-    # Khai báo thêm biến AI_SERVER_URL vì bạn đang dùng nó trong .env
-    AI_SERVER_URL: str 
-
-    SECRET_KEY: str
+    # =========================
+    # SECURITY
+    # =========================
+    SECRET_KEY: str = Field(..., min_length=8)
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    UPLOAD_DIR: str = "uploads"
-    MEDIA_URL_PREFIX: str = "/media"
+    # =========================
+    # S3 (RUNPOD)
+    # =========================
+    S3_ENDPOINT_URL: str = Field(..., min_length=1)
+    S3_REGION_NAME: str = "us-il-1"
+    S3_ACCESS_KEY_ID: str = Field(..., min_length=1)
+    S3_SECRET_ACCESS_KEY: str = Field(..., min_length=1)
+    S3_BUCKET_NAME: str = Field(..., min_length=1)
+    S3_UPLOAD_PREFIX: str = "uploads/"
 
+    # =========================
+    # COMPUTED PROPERTIES
+    # =========================
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> str:
-        # SQLAlchemy yêu cầu bắt đầu bằng postgresql://
-        # Render đôi khi trả về postgres:// nên ta cần xử lý thay thế nếu có
         if self.DATABASE_URL.startswith("postgres://"):
             return self.DATABASE_URL.replace("postgres://", "postgresql://", 1)
         return self.DATABASE_URL
 
+
     @computed_field
     @property
-    def UPLOAD_DIR_PATH(self) -> Path:
-        return Path(self.UPLOAD_DIR).resolve()
+    def S3_BASE_URL(self) -> str:
+        return f"{self.S3_ENDPOINT_URL}/{self.S3_BUCKET_NAME}"
 
     model_config = SettingsConfigDict(
         env_file=".env",
