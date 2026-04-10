@@ -135,7 +135,7 @@ def get_videos(
     
     data = jsonable_encoder(videos)
     
-    BACKEND_URL = getattr(settings, 'API_BASE_URL', "http://localhost:8000")
+    BACKEND_URL = getattr(settings, 'API_BASE_URL', "https://violence-backend-1-57zx.onrender.com")
     for v in data:
         if v.get("s3_key"):
             v["video_url"] = f"{BACKEND_URL}/api/v1/videos/stream?s3_key={v['s3_key']}"
@@ -164,7 +164,7 @@ def get_video_detail(
 
     data = jsonable_encoder(video)
     
-    BACKEND_URL = getattr(settings, 'API_BASE_URL', "http://localhost:8000")
+    BACKEND_URL = getattr(settings, 'API_BASE_URL', "https://violence-backend-1-57zx.onrender.com")
     if data.get("s3_key"):
         data["video_url"] = f"{BACKEND_URL}/api/v1/videos/stream?s3_key={data['s3_key']}"
     else:

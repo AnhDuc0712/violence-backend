@@ -248,7 +248,7 @@ def get_session_detail(session_id: UUID, db: Session = Depends(get_db), current_
 
     # Lấy BASE_URL của Backend (có thể lấy từ config hoặc hardcode localhost lúc dev)
     # Nếu sếp deploy lên host, nhớ sửa cái này thành URL thật nghen!
-    BACKEND_URL = getattr(settings, 'API_BASE_URL', "http://localhost:8000")
+    BACKEND_URL = getattr(settings, 'API_BASE_URL', "https://violence-backend-1-57zx.onrender.com")
 
     # ✅ BƯỚC 1: LẤY LINK VIDEO GỐC 
     video = db.query(Video).filter(Video.id == session.video_id).first()
