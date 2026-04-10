@@ -205,7 +205,7 @@ async def sync_analysis(
                     event_type=ev.get("label", "violence"),
                     t_start=float(ev.get("t_start", 0)),
                     t_end=float(ev.get("t_end", 0)),
-                    score=float(ev.get("score", 0))
+                    score=float(ev.get("score", 0)),
 
                     payload=ev if ev else {}
                 )
