@@ -206,6 +206,8 @@ async def sync_analysis(
                     t_start=float(ev.get("t_start", 0)),
                     t_end=float(ev.get("t_end", 0)),
                     score=float(ev.get("score", 0))
+
+                    payload=ev if ev else {}
                 )
                 db.add(new_event)
         
