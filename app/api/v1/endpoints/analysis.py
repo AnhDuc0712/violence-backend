@@ -190,7 +190,7 @@ async def sync_analysis(
     
     if payload.status == "completed":
         session_db.max_prob = payload.max_prob
-        session_db.processed_video_url = payload.processed_video_path # Chỗ này xem tên biến DB của sếp là gì
+        session_db.processed_video_path = payload.processed_video_path # Chỗ này xem tên biến DB của sếp là gì
         session_db.events = payload.events
     elif payload.status == "failed":
         # Nếu có cột lưu lý do lỗi thì lưu vào
