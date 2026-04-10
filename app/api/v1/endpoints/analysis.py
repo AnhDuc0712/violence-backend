@@ -208,7 +208,7 @@ async def sync_analysis(
                     score=float(ev.get("score", 0)),
 
                     payload=ev if ev else {},
-                    event_hash=unique_event_hash
+                    event_hash=None
                 )
                 db.add(new_event)
         
