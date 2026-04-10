@@ -190,17 +190,29 @@ async def sync_analysis(
     
     if payload.status == "completed":
         session_db.max_prob = payload.max_prob
-        session_db.processed_video_path = payload.processed_video_path # Chỗ này xem tên biến DB của sếp là gì
-        session_db.events = payload.events
-    elif payload.status == "failed":
-        # Nếu có cột lưu lý do lỗi thì lưu vào
-        # session_db.error_message = payload.failure_reason 
-        pass
+        session_db.processed_video_path = payload.processed_video_path 
+        
+        # 🔥 BƯỚC QUAN TRỌNG: Đổ dữ liệu từ AI vào bảng AnalysisEvent
+        if payload.events:
+            # 1. Xóa sạch log cũ của session này (nếu có) để tránh trùng lặp
+            db.query(AnalysisEvent).filter(AnalysisEvent.session_id == session_db.id).delete()
+            
+            # 2. Tạo record mới cho từng đoạn bạo lực AI tìm được
+            for ev in payload.events:
+                new_event = AnalysisEvent(
+                    id=uuid.uuid4(),
+                    session_id=session_db.id,
+                    event_type=ev.get("label", "violence"),
+                    t_start=float(ev.get("t_start", 0)),
+                    t_end=float(ev.get("t_end", 0)),
+                    score=float(ev.get("score", 0))
+                )
+                db.add(new_event)
+        
+        logger.info(f"✅ Đã lưu {len(payload.events)} đoạn bạo lực vào DB.")
 
-    # 💾 4. Lưu lại
     db.commit()
-
-    return {"status": "ok", "message": "Đã đồng bộ kết quả thành công"}
+    return {"status": "ok"}
 
 # 📑 3. LIST SESSIONS
 @router.get("", response_model=List[AnalysisSessionRead])
