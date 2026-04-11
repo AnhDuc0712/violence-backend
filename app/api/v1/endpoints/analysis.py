@@ -84,7 +84,9 @@ def safe_json(data):
         return int(data)
     else:
         return str(data) if data is not None else None
-
+def generate_event_hash(event):
+    raw = json.dumps(event, sort_keys=True)
+    return hashlib.sha256(raw.encode()).hexdigest()
 # 🚀 1. START ANALYSIS (API GATEWAY)
 @router.post("/start", response_model=AnalysisSessionRead)
 async def start_analysis(
@@ -208,7 +210,7 @@ async def sync_analysis(
                     score=float(ev.get("score", 0)),
 
                     payload=ev if ev else {},
-                    event_hash=None
+                    event_hash=event_hash
                 )
                 db.add(new_event)
         
