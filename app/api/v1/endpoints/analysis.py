@@ -218,9 +218,10 @@ async def sync_analysis(
                     id=uuid.uuid4(),
                     session_id=session_db.id,
                     event_type=ev.get("label", "violence"),
-                    t_start=float(ev.get("t_start", 0)),
-                    t_end=float(ev.get("t_end", 0)),
-                    score=float(ev.get("score", 0)),
+                    fps = 30
+
+                    t_start = float(ev.get("start_frame", 0)) / fps
+                    t_end   = float(ev.get("end_frame", 0)) / fps
 
                     payload=ev if ev else {},
                     event_hash=event_hash
