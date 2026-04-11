@@ -209,20 +209,22 @@ async def sync_analysis(
         if payload.events:
             # 1. Xóa sạch log cũ của session này (nếu có) để tránh trùng lặp
             db.query(AnalysisEvent).filter(AnalysisEvent.session_id == session_db.id).delete()
-            fps = 30
+            fps = getattr(payload, "fps", 30)
             # 2. Tạo record mới cho từng đoạn bạo lực AI tìm được
             for ev in payload.events:
                 event_hash = generate_event_hash(ev, session_db.id)
+
+                t_start = float(ev.get("start_frame", 0)) / fps
+                t_end   = float(ev.get("end_frame", 0)) / fps
+                score   = float(ev.get("score") or ev.get("max_prob", 0))
 
                 new_event = AnalysisEvent(
                     id=uuid.uuid4(),
                     session_id=session_db.id,
                     event_type=ev.get("label", "violence"),
-                    fps = 30
-
-                    t_start = float(ev.get("start_frame", 0)) / fps,
-                    t_end   = float(ev.get("end_frame", 0)) / fps,
-
+                    t_start=t_start,
+                    t_end=t_end,
+                    score=score,
                     payload=ev if ev else {},
                     event_hash=event_hash
                 )
