@@ -5,6 +5,7 @@ import logging
 import requests
 import json
 import numpy as np # ✅ BẮT BUỘC PHẢI CÓ ĐỂ TRÁNH LỖI NP NOT DEFINED
+import hashlib
 from datetime import datetime
 from typing import List, Any, Optional
 from uuid import UUID
@@ -84,9 +85,19 @@ def safe_json(data):
         return int(data)
     else:
         return str(data) if data is not None else None
-def generate_event_hash(event):
-    raw = json.dumps(event, sort_keys=True)
+import hashlib
+import json
+
+def generate_event_hash(ev, session_id):
+    key = {
+        "session_id": str(session_id),
+        "track_id": ev.get("track_id"),
+        "start": ev.get("t_start"),
+        "end": ev.get("t_end"),
+    }
+    raw = json.dumps(key, sort_keys=True)
     return hashlib.sha256(raw.encode()).hexdigest()
+
 # 🚀 1. START ANALYSIS (API GATEWAY)
 @router.post("/start", response_model=AnalysisSessionRead)
 async def start_analysis(
@@ -201,6 +212,8 @@ async def sync_analysis(
             
             # 2. Tạo record mới cho từng đoạn bạo lực AI tìm được
             for ev in payload.events:
+                event_hash = generate_event_hash(ev, session_db.id)
+
                 new_event = AnalysisEvent(
                     id=uuid.uuid4(),
                     session_id=session_db.id,
