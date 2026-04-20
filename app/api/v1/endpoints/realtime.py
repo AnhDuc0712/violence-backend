@@ -8,7 +8,6 @@ from app.core.config import settings
 
 router = APIRouter()
 
-
 def _safe_number(value: Any, default: float = 0.0) -> float:
     try:
         number = float(value)
@@ -17,7 +16,6 @@ def _safe_number(value: Any, default: float = 0.0) -> float:
         return number
     except (TypeError, ValueError):
         return default
-
 
 def _normalize_people(raw_people: Any) -> list[dict[str, Any]]:
     if not isinstance(raw_people, list):
@@ -39,7 +37,6 @@ def _normalize_people(raw_people: Any) -> list[dict[str, Any]]:
         )
 
     return normalized_people
-
 
 def _normalize_alerts(raw_alerts: Any, fallback_timestamp: int) -> list[dict[str, Any]]:
     if not isinstance(raw_alerts, list):
@@ -70,14 +67,12 @@ def _normalize_alerts(raw_alerts: Any, fallback_timestamp: int) -> list[dict[str
 
     return normalized_alerts
 
-
 def _empty_realtime_payload(latency_ms: int = 0) -> dict[str, Any]:
     return {
         "people": [],
         "alerts": [],
         "latency_ms": max(0, int(latency_ms)),
     }
-
 
 def _normalize_realtime_payload(
     payload: Any,
@@ -97,39 +92,47 @@ def _normalize_realtime_payload(
         "alerts": _normalize_alerts(payload.get("alerts") or payload.get("events"), fallback_timestamp),
         "latency_ms": normalized_latency,
     }
-AI_URL = " https://controls-widespread-robinson-participate.trycloudflare.com" # URL Cloudflare hoặc Runpod
+
+
+# 🔥 FIX: Xóa khoảng trắng thừa ở đầu chuỗi URL
+AI_URL = "https://age-cities-proposals-substantially.trycloudflare.com"
 
 @router.websocket("/ws/realtime-legacy")
 async def realtime_ws(ws: WebSocket):
+    # ✅ FIX: Bắt buộc gọi accept()
     await ws.accept()
+    print("✅ [WS Legacy] Frontend Connected!")
     
-    # Dùng 1 client duy nhất cho toàn bộ session để tối ưu tốc độ
     async with httpx.AsyncClient() as client:
         try:
             while True:
-                # Nhận frame từ FE
                 data = await ws.receive_json()
                 
-                # Gửi sang AI soi
                 try:
+                    # Nâng timeout lên 3s thay vì 1.0s vì gọi qua Cloudflare có thể lag
                     res = await client.post(
                         f"{AI_URL}/api/analyze-frame",
                         json={"image": data["image"]},
-                        timeout=1.0
+                        timeout=3.0 
                     )
-                    # Trả kết quả (Keypoints) về FE
                     await ws.send_json(res.json())
-                except:
+                except Exception as e:
+                    # 🔥 FIX: Báo lỗi ra console để dev biết AI đang sập/timeout
+                    print(f"⚠️ [AI Call Error - Legacy]: {e}")
                     await ws.send_json({"people": []})
         except WebSocketDisconnect:
-            pass
+            print("🔴 [WS Legacy] Frontend Disconnected!")
 
 
 @router.websocket("/ws/realtime")
 async def realtime_ws_v2(ws: WebSocket):
+    # 🔥 CÁCH 1: KHÔNG Depends, KHÔNG Auth, KHÔNG Token
+    # Bắt tay ngay lập tức để thông luồng
     await ws.accept()
+    print("✅ [WS V2] Frontend Connected! (Auth Disabled for Debugging)")
 
-    ai_url = settings.AI_SERVER_URL.rstrip("/")
+    # Lấy URL và khử trùng
+    ai_url = settings.AI_SERVER_URL.strip().rstrip("/")
 
     async with httpx.AsyncClient() as client:
         try:
@@ -155,6 +158,7 @@ async def realtime_ws_v2(ws: WebSocket):
                     )
                     res.raise_for_status()
                     elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+                    
                     await ws.send_json(
                         _normalize_realtime_payload(
                             res.json(),
@@ -162,8 +166,9 @@ async def realtime_ws_v2(ws: WebSocket):
                             fallback_timestamp=fallback_timestamp,
                         )
                     )
-                except Exception:
+                except Exception as e:
                     elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+                    print(f"⚠️ [AI Call Error - V2]: {e}")
                     await ws.send_json(_empty_realtime_payload(elapsed_ms))
         except WebSocketDisconnect:
-            pass
+            print("🔴 [WS V2] Frontend Disconnected!")
