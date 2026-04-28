@@ -23,10 +23,10 @@ app = FastAPI(
 )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # dev thì để *
+    allow_origins=os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5173,http://localhost:8080").split(","),
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 # 🛠️ [DEBUG 422] MIDDLEWARE BẮT LỖI VALIDATION
 # Thêm đoạn này để ép FastAPI phải "khai" ra lỗi nằm ở đâu
@@ -56,7 +56,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 # Đăng ký Router
 app.include_router(api_router, prefix=settings.API_V1_STR)
-api_router.include_router(realtime.router, prefix="/realtime", tags=["realtime"])
+api_router.include_router(realtime.router, prefix="", tags=["realtime"])
 
 @app.get("/", include_in_schema=False)
 async def root():

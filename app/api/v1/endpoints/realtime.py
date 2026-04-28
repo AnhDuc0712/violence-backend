@@ -94,11 +94,13 @@ def _normalize_realtime_payload(
     }
 
 
-# 🔥 FIX: Xóa khoảng trắng thừa ở đầu chuỗi URL
-AI_URL = "https://age-cities-proposals-substantially.trycloudflare.com"
+# ✅ FIX: Use environment variable for AI server URL
+import os
+AI_URL = os.getenv("AI_SERVER_URL", "http://localhost:8001").strip().rstrip("/")
 
 @router.websocket("/ws/realtime-legacy")
 async def realtime_ws(ws: WebSocket):
+    print("🔗 [WS Legacy] Connection request received")
     # ✅ FIX: Bắt buộc gọi accept()
     await ws.accept()
     print("✅ [WS Legacy] Frontend Connected!")
@@ -126,6 +128,7 @@ async def realtime_ws(ws: WebSocket):
 
 @router.websocket("/ws/realtime")
 async def realtime_ws_v2(ws: WebSocket):
+    print("🔗 [WS V2] Connection request received")
     # 🔥 CÁCH 1: KHÔNG Depends, KHÔNG Auth, KHÔNG Token
     # Bắt tay ngay lập tức để thông luồng
     await ws.accept()
@@ -138,6 +141,7 @@ async def realtime_ws_v2(ws: WebSocket):
         try:
             while True:
                 data = await ws.receive_json()
+                print("📥 [WS V2] Received frame data")
                 fallback_timestamp = int(_safe_number(data.get("timestamp"), time.time() * 1000))
                 frame_base64 = data.get("image") or data.get("frame_base64")
 
