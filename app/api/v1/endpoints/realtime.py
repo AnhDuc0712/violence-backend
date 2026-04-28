@@ -128,10 +128,12 @@ async def realtime_ws(ws: WebSocket):
 
 @router.websocket("/ws/realtime")
 async def realtime_ws_v2(ws: WebSocket):
+    print("🔗 [WS V2] WS ROUTE HIT")
     print("🔗 [WS V2] Connection request received")
     # 🔥 CÁCH 1: KHÔNG Depends, KHÔNG Auth, KHÔNG Token
     # Bắt tay ngay lập tức để thông luồng
     await ws.accept()
+    print("✅ [WS V2] WS ACCEPT")
     print("✅ [WS V2] Frontend Connected! (Auth Disabled for Debugging)")
 
     # Lấy URL và khử trùng
@@ -140,39 +142,44 @@ async def realtime_ws_v2(ws: WebSocket):
     async with httpx.AsyncClient() as client:
         try:
             while True:
-                data = await ws.receive_json()
-                print("📥 [WS V2] Received frame data")
-                fallback_timestamp = int(_safe_number(data.get("timestamp"), time.time() * 1000))
-                frame_base64 = data.get("image") or data.get("frame_base64")
-
-                if not isinstance(frame_base64, str) or not frame_base64.strip():
-                    await ws.send_json(_empty_realtime_payload())
-                    continue
-
-                started_at = time.perf_counter()
                 try:
-                    res = await client.post(
-                        f"{ai_url}/api/analyze-frame",
-                        json={
-                            "image": frame_base64,
-                            "frame_id": data.get("frame_id"),
-                            "timestamp": fallback_timestamp,
-                        },
-                        timeout=10.0,
-                    )
-                    res.raise_for_status()
-                    elapsed_ms = int((time.perf_counter() - started_at) * 1000)
-                    
-                    await ws.send_json(
-                        _normalize_realtime_payload(
-                            res.json(),
-                            fallback_latency_ms=elapsed_ms,
-                            fallback_timestamp=fallback_timestamp,
+                    data = await ws.receive_json()
+                    print("📥 [WS V2] WS RECEIVE")
+                    print("📥 [WS V2] Received frame data")
+                    fallback_timestamp = int(_safe_number(data.get("timestamp"), time.time() * 1000))
+                    frame_base64 = data.get("image") or data.get("frame_base64")
+
+                    if not isinstance(frame_base64, str) or not frame_base64.strip():
+                        await ws.send_json(_empty_realtime_payload())
+                        continue
+
+                    started_at = time.perf_counter()
+                    try:
+                        res = await client.post(
+                            f"{ai_url}/api/analyze-frame",
+                            json={
+                                "image": frame_base64,
+                                "frame_id": data.get("frame_id"),
+                                "timestamp": fallback_timestamp,
+                            },
+                            timeout=10.0,
                         )
-                    )
+                        res.raise_for_status()
+                        elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+                        
+                        await ws.send_json(
+                            _normalize_realtime_payload(
+                                res.json(),
+                                fallback_latency_ms=elapsed_ms,
+                                fallback_timestamp=fallback_timestamp,
+                            )
+                        )
+                    except Exception as e:
+                        elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+                        print(f"⚠️ [AI Call Error - V2]: {e}")
+                        await ws.send_json(_empty_realtime_payload(elapsed_ms))
                 except Exception as e:
-                    elapsed_ms = int((time.perf_counter() - started_at) * 1000)
-                    print(f"⚠️ [AI Call Error - V2]: {e}")
-                    await ws.send_json(_empty_realtime_payload(elapsed_ms))
+                    print(f"❌ [WS V2] WS ERROR in loop: {e}")
+                    break
         except WebSocketDisconnect:
             print("🔴 [WS V2] Frontend Disconnected!")

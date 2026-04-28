@@ -25,8 +25,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_methods=["*"],  # ✅ Allow all methods for WS upgrade
+    allow_headers=["*"],  # ✅ Allow all headers
 )
 # 🛠️ [DEBUG 422] MIDDLEWARE BẮT LỖI VALIDATION
 # Thêm đoạn này để ép FastAPI phải "khai" ra lỗi nằm ở đâu
@@ -63,3 +63,12 @@ async def root():
     return {
         "message": f"Welcome to {settings.PROJECT_NAME}. Visit /swagger for docs.",
     }
+
+# ✅ DEBUG: In tất cả routes khi startup
+@app.on_event("startup")
+async def startup_event():
+    print("🚀 [STARTUP] Registered routes:")
+    for route in app.routes:
+        if hasattr(route, 'path'):
+            print(f"  - {route.path} ({route.methods if hasattr(route, 'methods') else 'WS'})")
+    print("✅ [STARTUP] Routes printed")
