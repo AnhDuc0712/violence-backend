@@ -98,34 +98,6 @@ def _normalize_realtime_payload(
 import os
 AI_URL = os.getenv("AI_SERVER_URL", "http://localhost:8001").strip().rstrip("/")
 
-@router.websocket("/ws/realtime-legacy")
-async def realtime_ws(ws: WebSocket):
-    print("🔗 [WS Legacy] Connection request received")
-    # ✅ FIX: Bắt buộc gọi accept()
-    await ws.accept()
-    print("✅ [WS Legacy] Frontend Connected!")
-    
-    async with httpx.AsyncClient() as client:
-        try:
-            while True:
-                data = await ws.receive_json()
-                
-                try:
-                    # Nâng timeout lên 3s thay vì 1.0s vì gọi qua Cloudflare có thể lag
-                    res = await client.post(
-                        f"{AI_URL}/api/analyze-frame",
-                        json={"image": data["image"]},
-                        timeout=3.0 
-                    )
-                    await ws.send_json(res.json())
-                except Exception as e:
-                    # 🔥 FIX: Báo lỗi ra console để dev biết AI đang sập/timeout
-                    print(f"⚠️ [AI Call Error - Legacy]: {e}")
-                    await ws.send_json({"people": []})
-        except WebSocketDisconnect:
-            print("🔴 [WS Legacy] Frontend Disconnected!")
-
-
 @router.websocket("/ws/realtime")
 async def realtime_ws_v2(ws: WebSocket):
     print("🔗 [WS V2] WS ROUTE HIT")
