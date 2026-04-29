@@ -56,7 +56,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 # Đăng ký Router
 app.include_router(api_router, prefix=settings.API_V1_STR)
-api_router.include_router(realtime.router, prefix="", tags=["realtime"])
+app.include_router(realtime.router, prefix=settings.API_V1_STR, tags=["realtime"])
 
 @app.get("/", include_in_schema=False)
 async def root():

@@ -21,7 +21,6 @@ api_router.include_router(auth.router, prefix="/auth", tags=["A. Authentication"
 api_router.include_router(profile.router, prefix="/profile", tags=["B. Profile"])
 api_router.include_router(videos.router, prefix="/videos", tags=["C. Video Management"])
 api_router.include_router(analysis.router, prefix="/analysis", tags=["D. Analysis"])
-api_router.include_router(realtime.router, prefix="/realtime", tags=["D2. Realtime Camera"])
 api_router.include_router(feedback.router, prefix="/feedback", tags=["E. Feedback"])
 api_router.include_router(reports.router, prefix="/reports", tags=["F. Reports"])
 
