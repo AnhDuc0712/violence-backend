@@ -5,12 +5,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from app.api.v1.endpoints import realtime
+from app.api.v1.endpoints import realtime, realtime_v2
 from app.api.v1.api import api_router
 from app.core.config import settings
 from dotenv import load_dotenv
 
-from app.api.v1.endpoints import realtime
 load_dotenv()
 # Khởi tạo logger để ghi lại lỗi
 logger = logging.getLogger(__name__)
@@ -57,6 +56,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 # Đăng ký Router
 app.include_router(api_router, prefix=settings.API_V1_STR)
 app.include_router(realtime.router, prefix=settings.API_V1_STR, tags=["realtime"])
+app.include_router(realtime_v2.router, prefix=settings.API_V1_STR, tags=["realtime-v2"])
 
 @app.get("/", include_in_schema=False)
 async def root():
