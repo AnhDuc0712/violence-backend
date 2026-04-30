@@ -111,7 +111,7 @@ async def realtime_video_endpoint(websocket: WebSocket):
                             "image": frame_data.get("image"),
                             "timestamp": frame_data.get("timestamp")
                         }
-                        response = await client.post(AI_SERVER_URL, json=payload, timeout=7.0)
+                        response = await client.post(AI_ANALYZE_ENDPOINT, json=payload, timeout=7.0)
                         response.raise_for_status()
                         result = response.json()
                         latency_ms = (time.time() - start_time) * 1000
