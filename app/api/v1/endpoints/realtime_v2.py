@@ -13,8 +13,9 @@ from app.services.session_manager import session_manager
 logger = logging.getLogger("realtime_v2")
 router = APIRouter()
 
-AI_SERVER_URL = os.getenv("AI_SERVER_URL", "http://localhost:8001/api/analyze-frame")
-AI_SESSION_URL = AI_SERVER_URL.removesuffix("/api/analyze-frame")
+AI_BASE_URL = os.getenv("AI_SERVER_URL", "http://localhost:8001").rstrip("/")
+AI_ANALYZE_ENDPOINT = f"{AI_BASE_URL}/api/analyze-frame"
+AI_SESSION_ENDPOINT = f"{AI_BASE_URL}/api/realtime-session"
 
 class SessionContext:
     def __init__(self):
