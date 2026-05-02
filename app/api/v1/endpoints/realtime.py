@@ -17,6 +17,43 @@ def _safe_number(value: Any, default: float = 0.0) -> float:
     except (TypeError, ValueError):
         return default
 
+def _safe_int(value: Any, default: int = 0) -> int:
+    return int(_safe_number(value, default))
+
+def _safe_bool(value: Any, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "violent", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "off"}:
+            return False
+    return default
+
+def _safe_text(value: Any, default: str = "") -> str:
+    if value is None:
+        return default
+    return str(value)
+
+def _safe_numeric_list(value: Any) -> list[float]:
+    if not isinstance(value, list):
+        return []
+    return [_safe_number(item, 0.0) for item in value]
+
+def _safe_keypoints(value: Any) -> list[list[float]]:
+    if not isinstance(value, list):
+        return []
+
+    normalized: list[list[float]] = []
+    for point in value:
+        if not isinstance(point, list):
+            continue
+        normalized.append([_safe_number(coord, 0.0) for coord in point])
+    return normalized
+
 def _normalize_people(raw_people: Any) -> list[dict[str, Any]]:
     if not isinstance(raw_people, list):
         return []
@@ -29,10 +66,25 @@ def _normalize_people(raw_people: Any) -> list[dict[str, Any]]:
         bbox = person.get("bbox")
         keypoints = person.get("keypoints")
 
+        # Preserve the existing normalization layer, but forward the temporal
+        # inference fields that the frontend needs to render realtime violence state.
         normalized_people.append(
             {
-                "bbox": bbox if isinstance(bbox, list) else None,
-                "keypoints": keypoints if isinstance(keypoints, list) else [],
+                "track_id": _safe_int(person.get("track_id"), 0),
+                "identity": _safe_text(person.get("identity"), "Unknown"),
+                "label": _safe_text(person.get("label"), "unknown"),
+                "violence_prob": _safe_number(person.get("violence_prob"), 0.0),
+                "raw_prob": _safe_number(person.get("raw_prob"), 0.0),
+                "bilstm_prob": _safe_number(person.get("bilstm_prob"), 0.0),
+                "xgb_prob": _safe_number(person.get("xgb_prob"), 0.0),
+                "is_violent": _safe_bool(person.get("is_violent"), False),
+                "status": _safe_text(person.get("status"), "unknown"),
+                "source": _safe_text(person.get("source"), "unknown"),
+                "interaction_score": _safe_number(person.get("interaction_score"), 0.0),
+                "identity_locked": _safe_bool(person.get("identity_locked"), False),
+                "identity_votes_count": _safe_int(person.get("identity_votes_count"), 0),
+                "bbox": _safe_numeric_list(bbox) if isinstance(bbox, list) else None,
+                "keypoints": _safe_keypoints(keypoints),
             }
         )
 
