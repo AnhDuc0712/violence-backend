@@ -3,6 +3,7 @@ import logging
 import time
 import uuid
 import os
+from collections import deque
 from datetime import datetime
 
 import httpx
@@ -31,6 +32,10 @@ class SessionContext:
         self.frames_dropped: int = 0
         self.avg_latency_ms: float = 0.0
         self.last_frame_time: float = time.time()
+        self.effective_fps: float = 0.0
+        self.track_count: int = 0
+        self.alert_count: int = 0
+        self._drop_times: deque[float] = deque()
 
     def update_latency(self, latency_ms: float):
         total_latency = self.avg_latency_ms * self.frames_processed
@@ -41,6 +46,22 @@ class SessionContext:
         """Cập nhật thời gian truy cập cuối (cho cả receive và process)"""
         self.last_access = datetime.now()
         self.last_frame_time = time.time()
+
+    def record_drop(self):
+        self.frames_dropped += 1
+        now = time.time()
+        self._drop_times.append(now)
+        self._prune_drop_times(now)
+
+    def _prune_drop_times(self, now: float | None = None):
+        current = now or time.time()
+        while self._drop_times and (current - self._drop_times[0]) > 10.0:
+            self._drop_times.popleft()
+
+    @property
+    def dropped_frames_10s(self) -> int:
+        self._prune_drop_times()
+        return len(self._drop_times)
 
 
 async def _put_latest(queue: asyncio.Queue, item, *, on_drop=None) -> None:
@@ -97,7 +118,7 @@ async def realtime_video_endpoint(websocket: WebSocket):
                 await _put_latest(
                     ctx.frame_queue,
                     data,
-                    on_drop=lambda: setattr(ctx, "frames_dropped", ctx.frames_dropped + 1),
+                    on_drop=ctx.record_drop,
                 )
         except WebSocketDisconnect:
             raise
@@ -118,7 +139,8 @@ async def realtime_video_endpoint(websocket: WebSocket):
                         except asyncio.QueueEmpty:
                             break
                     if frames_claimed > 1:
-                        ctx.frames_dropped += frames_claimed - 1
+                        for _ in range(frames_claimed - 1):
+                            ctx.record_drop()
 
                     start_time = time.time()
                     try:
@@ -133,6 +155,22 @@ async def realtime_video_endpoint(websocket: WebSocket):
                         result = response.json()
                         latency_ms = (time.time() - start_time) * 1000
                         ctx.update_latency(latency_ms)
+                        people = result.get("people") if isinstance(result, dict) else []
+                        alerts = result.get("alerts") if isinstance(result, dict) else []
+                        ctx.track_count = len(people) if isinstance(people, list) else 0
+                        active_alert_count = result.get("active_alert_count") if isinstance(result, dict) else 0
+                        try:
+                            ctx.alert_count = int(active_alert_count or 0)
+                        except (TypeError, ValueError):
+                            ctx.alert_count = len(alerts) if isinstance(alerts, list) else 0
+                        fps_value = result.get("effective_fps") if isinstance(result, dict) else 0.0
+                        if isinstance(people, list) and people:
+                            first_person = people[0] if isinstance(people[0], dict) else {}
+                            fps_value = first_person.get("effective_fps", fps_value)
+                        try:
+                            ctx.effective_fps = float(fps_value or 0.0)
+                        except (TypeError, ValueError):
+                            ctx.effective_fps = 0.0
 
                         await _put_latest(ctx.result_queue, result)
                     except Exception as e:

@@ -126,6 +126,15 @@ def _normalize_alerts(raw_alerts: Any, fallback_timestamp: int) -> list[dict[str
                 "score": _safe_number(alert.get("score") or alert.get("confidence"), 0.0),
                 "timestamp": timestamp,
                 "message": alert.get("message"),
+                "semantic_message": _safe_text(alert.get("semantic_message"), _safe_text(alert.get("message"), "")),
+                "semantic_confidence": _safe_number(alert.get("semantic_confidence"), _safe_number(alert.get("score") or alert.get("confidence"), 0.0)),
+                "interaction_pair": [
+                    _safe_int(item, 0)
+                    for item in (alert.get("interaction_pair") if isinstance(alert.get("interaction_pair"), list) else [])
+                ],
+                "aggressor_track_id": _safe_int(alert.get("aggressor_track_id"), 0),
+                "victim_track_id": _safe_int(alert.get("victim_track_id"), 0),
+                "alert_state": _safe_text(alert.get("alert_state"), "DETECTED"),
             }
         )
 

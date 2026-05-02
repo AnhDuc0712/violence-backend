@@ -28,8 +28,13 @@ class RealtimeSessionManager:
                     "frames_received": ctx.frames_received,
                     "frames_processed": ctx.frames_processed,
                     "frames_dropped": ctx.frames_dropped,
+                    "dropped_frames_10s": getattr(ctx, "dropped_frames_10s", 0),
                     "avg_latency_ms": round(ctx.avg_latency_ms, 2),
-                    "queue_depth": ctx.frame_queue.qsize()
+                    "queue_depth": ctx.frame_queue.qsize(),
+                    "result_queue_depth": ctx.result_queue.qsize(),
+                    "effective_fps": round(getattr(ctx, "effective_fps", 0.0), 2),
+                    "track_count": int(getattr(ctx, "track_count", 0)),
+                    "alert_count": int(getattr(ctx, "alert_count", 0)),
                 })
             return metrics
 
