@@ -20,8 +20,8 @@ AI_SESSION_ENDPOINT = f"{AI_BASE_URL}/api/realtime-session"
 class SessionContext:
     def __init__(self):
         self.session_id: str = str(uuid.uuid4())
-        self.frame_queue: asyncio.Queue = asyncio.Queue(maxsize=5)
-        self.result_queue: asyncio.Queue = asyncio.Queue(maxsize=5)
+        self.frame_queue: asyncio.Queue = asyncio.Queue(maxsize=3)
+        self.result_queue: asyncio.Queue = asyncio.Queue(maxsize=1)
         
         self.created_at: datetime = datetime.now()
         self.last_access: datetime = datetime.now()
@@ -41,6 +41,18 @@ class SessionContext:
         """Cập nhật thời gian truy cập cuối (cho cả receive và process)"""
         self.last_access = datetime.now()
         self.last_frame_time = time.time()
+
+
+async def _put_latest(queue: asyncio.Queue, item, *, on_drop=None) -> None:
+    if queue.full():
+        try:
+            queue.get_nowait()
+            queue.task_done()
+            if on_drop is not None:
+                on_drop()
+        except asyncio.QueueEmpty:
+            pass
+    await queue.put(item)
 
 
 @router.get("/ws/realtime-v2/metrics")
@@ -82,17 +94,11 @@ async def realtime_video_endpoint(websocket: WebSocket):
                 if "image" not in data:
                     continue
 
-                # Drop oldest if queue full
-                if ctx.frame_queue.full():
-                    try:
-                        ctx.frame_queue.get_nowait()
-                        ctx.frame_queue.task_done()
-                        ctx.frames_dropped += 1
-                        logger.warning(f"[{ctx.session_id}] Frame queue full, dropped oldest.")
-                    except asyncio.QueueEmpty:
-                        pass
-
-                await ctx.frame_queue.put(data)
+                await _put_latest(
+                    ctx.frame_queue,
+                    data,
+                    on_drop=lambda: setattr(ctx, "frames_dropped", ctx.frames_dropped + 1),
+                )
         except WebSocketDisconnect:
             raise
         except Exception as e:
@@ -104,12 +110,23 @@ async def realtime_video_endpoint(websocket: WebSocket):
             try:
                 while True:
                     frame_data = await ctx.frame_queue.get()
+                    frames_claimed = 1
+                    while True:
+                        try:
+                            frame_data = ctx.frame_queue.get_nowait()
+                            frames_claimed += 1
+                        except asyncio.QueueEmpty:
+                            break
+                    if frames_claimed > 1:
+                        ctx.frames_dropped += frames_claimed - 1
+
                     start_time = time.time()
                     try:
                         payload = {
                             "session_id": ctx.session_id,
                             "image": frame_data.get("image"),
-                            "timestamp": frame_data.get("timestamp")
+                            "timestamp": frame_data.get("timestamp"),
+                            "frame_id": frame_data.get("frame_id"),
                         }
                         response = await client.post(AI_ANALYZE_ENDPOINT, json=payload, timeout=7.0)
                         response.raise_for_status()
@@ -117,19 +134,12 @@ async def realtime_video_endpoint(websocket: WebSocket):
                         latency_ms = (time.time() - start_time) * 1000
                         ctx.update_latency(latency_ms)
 
-                        # Result queue backpressure: drop oldest if full
-                        if ctx.result_queue.full():
-                            try:
-                                ctx.result_queue.get_nowait()
-                                ctx.result_queue.task_done()
-                                logger.warning(f"[{ctx.session_id}] Result queue full, dropped oldest result.")
-                            except asyncio.QueueEmpty:
-                                pass
-                        await ctx.result_queue.put(result)
+                        await _put_latest(ctx.result_queue, result)
                     except Exception as e:
                         logger.error(f"[{ctx.session_id}] AI call error: {e}")
                     finally:
-                        ctx.frame_queue.task_done()
+                        for _ in range(frames_claimed):
+                            ctx.frame_queue.task_done()
             except asyncio.CancelledError:
                 pass
 
@@ -138,8 +148,16 @@ async def realtime_video_endpoint(websocket: WebSocket):
         try:
             while True:
                 result = await ctx.result_queue.get()
+                results_claimed = 1
+                while True:
+                    try:
+                        result = ctx.result_queue.get_nowait()
+                        results_claimed += 1
+                    except asyncio.QueueEmpty:
+                        break
                 await websocket.send_json(result)
-                ctx.result_queue.task_done()
+                for _ in range(results_claimed):
+                    ctx.result_queue.task_done()
         except asyncio.CancelledError:
             pass
 
@@ -173,7 +191,7 @@ async def realtime_video_endpoint(websocket: WebSocket):
         try:
             async with httpx.AsyncClient() as client:
                 await client.delete(
-                    f"{AI_SESSION_URL}/api/realtime-session/{ctx.session_id}",
+                    f"{AI_SESSION_ENDPOINT}/{ctx.session_id}",
                     timeout=3.0,
                 )
         except Exception as e:
