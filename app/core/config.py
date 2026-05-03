@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     # S3 (RUNPOD)
     # =========================
     S3_ENDPOINT_URL: str = Field(..., min_length=1)
-    S3_REGION_NAME: str = "us-ca-2"
+    S3_REGION_NAME: str = "eu-ro-1"
     S3_ACCESS_KEY_ID: str = Field(..., min_length=1)
     S3_SECRET_ACCESS_KEY: str = Field(..., min_length=1)
     S3_BUCKET_NAME: str = Field(..., min_length=1)
