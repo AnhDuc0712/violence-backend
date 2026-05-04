@@ -6,6 +6,7 @@ import requests
 import json
 import numpy as np # ✅ BẮT BUỘC PHẢI CÓ ĐỂ TRÁNH LỖI NP NOT DEFINED
 import hashlib
+import traceback
 from datetime import datetime
 from typing import List, Any, Optional
 from uuid import UUID
@@ -165,6 +166,20 @@ async def start_analysis(
         except requests.exceptions.Timeout:
             logger.error("❌ AI Server Timeout (10s)! (Pending retry)")
         except requests.exceptions.RequestException as e:
+            traceback.print_exc()
+            response_text = ""
+            status_code = None
+            if getattr(e, "response", None) is not None:
+                status_code = e.response.status_code
+                response_text = e.response.text[:2000]
+            logger.exception(
+                "AI analyze request failed session_id=%s video_id=%s ai_url=%s status_code=%s response=%s",
+                new_session.id,
+                video.id,
+                AI_SERVER_URL,
+                status_code,
+                response_text,
+            )
             logger.error(f"❌ Lỗi kết nối AI Server: {e}")
             new_session.status = "failed"
             new_session.failure_reason = f"Lỗi gọi AI: {str(e)}"
@@ -174,6 +189,7 @@ async def start_analysis(
         
     except Exception as e:
         db.rollback()
+        traceback.print_exc()
         logger.error(f"❌ START ERROR: {str(e)}")
         raise HTTPException(status_code=500, detail="Lỗi hệ thống khi khởi tạo phiên phân tích.")
 
